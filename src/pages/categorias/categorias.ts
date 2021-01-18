@@ -32,10 +32,12 @@ export class CategoriasPage {
     this.CategoriaService.findAll()
       .subscribe(response => {
         this.items = response;
-        //console.log(response);
       },
         error => {
-          //console.log(error);
         });
+  }
+
+  showProdutos(){
+    this.navCtrl.push('ProdutosPage');
   }
 }
