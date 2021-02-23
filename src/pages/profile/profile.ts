@@ -1,17 +1,11 @@
 import { Component } from '@angular/core';
-import { Camera, CameraOptions } from '@ionic-native/camera';
 import { IonicPage, NavController, NavParams } from 'ionic-angular';
-import { API_CONFIG } from '../../config/api.config';
+import { StorageService } from '../../services/storage.service';
 import { ClienteDTO } from '../../models/cliente.dto';
 import { ClienteService } from '../../services/domain/cliente.service';
-import { StorageService } from '../../services/storage.service';
-
-/**
- * Generated class for the ProfilePage page.
- *
- * See https://ionicframework.com/docs/components/#navigation for more info on
- * Ionic pages and navigation.
- */
+import { API_CONFIG } from '../../config/api.config';
+import { CameraOptions, Camera } from '@ionic-native/camera';
+import { DomSanitizer } from '@angular/platform-browser';
 
 @IonicPage()
 @Component({
@@ -22,21 +16,25 @@ export class ProfilePage {
 
   cliente: ClienteDTO;
   picture: string;
+  profileImage;
   cameraOn: boolean = false;
 
   constructor(
-    public navCtrl: NavController,
+    public navCtrl: NavController, 
     public navParams: NavParams,
     public storage: StorageService,
     public clienteService: ClienteService,
-    public camera: Camera) {
+    public camera: Camera,
+    public sanitizer: DomSanitizer) {
+
+      this.profileImage = 'assets/imgs/avatar-blank.png';
   }
 
   ionViewDidLoad() {
     this.loadData();
   }
 
-  loadData(){
+  loadData() {
     let localUser = this.storage.getLocalUser();
     if (localUser && localUser.email) {
       this.clienteService.findByEmail(localUser.email)
@@ -44,25 +42,42 @@ export class ProfilePage {
           this.cliente = response as ClienteDTO;
           this.getImageIfExists();
         },
-          error => {
-            if (error.status == 403) {
-              this.navCtrl.setRoot('HomePage');
-            }
-          });
-    } else {
-      this.navCtrl.setRoot('HomePage');
+        error => {
+          if (error.status == 403) {
+            this.navCtrl.setRoot('HomePage');
+          }
+        });
     }
+    else {
+      this.navCtrl.setRoot('HomePage');
+    }    
   }
 
   getImageIfExists() {
     this.clienteService.getImageFromBucket(this.cliente.id)
-      .subscribe(response => {
-        this.cliente.imageUrl = `${API_CONFIG.bucketBaseUrl}/cp${this.cliente.id}.jpg`;
-      },
-        error => { });
+    .subscribe(response => {
+      this.cliente.imageUrl = `${API_CONFIG.bucketBaseUrl}/cp${this.cliente.id}.jpg`;
+      this.blobToDataURL(response).then(dataUrl => {
+        let str : string = dataUrl as string;
+        this.profileImage = this.sanitizer.bypassSecurityTrustUrl(str);
+      });
+    },
+    error => {
+      this.profileImage = 'assets/imgs/avatar-blank.png';
+    });
   }
 
-  getCameraPicture(){
+  // https://gist.github.com/frumbert/3bf7a68ffa2ba59061bdcfc016add9ee
+  blobToDataURL(blob) {
+    return new Promise((fulfill, reject) => {
+        let reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = (e) => fulfill(reader.result);
+        reader.readAsDataURL(blob);
+    })
+  }
+
+  getCameraPicture() {
 
     this.cameraOn = true;
 
@@ -81,7 +96,7 @@ export class ProfilePage {
     });
   }
 
-  getGalleryPicture(){
+  getGalleryPicture() {
 
     this.cameraOn = true;
 
@@ -97,22 +112,21 @@ export class ProfilePage {
      this.picture = 'data:image/png;base64,' + imageData;
      this.cameraOn = false;
     }, (err) => {
-      this.cameraOn = false;     
+      this.cameraOn = false;
     });
   }
 
-
-  sendPicture(){
+  sendPicture() {
     this.clienteService.uploadPicture(this.picture)
-    .subscribe(response => {
-      this.picture = null;
-      this.loadData();
-    },
-    error => {});
+      .subscribe(response => {
+        this.picture = null;
+        this.getImageIfExists();
+      },
+      error => {
+      });
   }
 
-  cancel(){
+  cancel() {
     this.picture = null;
   }
-
 }
